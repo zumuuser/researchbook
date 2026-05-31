@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="#18181b"/>
+
+  <!-- Document body -->
+  <rect x="86" y="54" width="280" height="360" rx="28" fill="#2a2a2a"/>
+  <!-- Document white interior -->
+  <rect x="102" y="70" width="248" height="328" rx="16" fill="#ffffff"/>
+
+  <!-- Folded corner (dark overlay creating the fold effect) -->
+  <path d="M302 70 L350 70 L350 118 Z" fill="#f59e0b"/>
+  <!-- Slight shadow/depth on fold -->
+  <path d="M302 70 L350 118 L302 118 Z" fill="#d97706"/>
+
+  <!-- Text lines -->
+  <rect x="130" y="160" width="192" height="20" rx="10" fill="#2a2a2a"/>
+  <rect x="130" y="208" width="152" height="20" rx="10" fill="#2a2a2a"/>
+  <rect x="130" y="256" width="176" height="20" rx="10" fill="#2a2a2a"/>
+
+  <!-- Pencil group, rotated ~35deg around its center -->
+  <g transform="translate(340, 240) rotate(35)">
+    <!-- Pencil body (dark) -->
+    <rect x="-24" y="-100" width="48" height="200" rx="12" fill="#2a2a2a"/>
+    <!-- Pencil orange band -->
+    <rect x="-16" y="-40" width="32" height="80" rx="8" fill="#f59e0b"/>
+    <!-- Pencil tip (white) -->
+    <path d="M-20 100 L20 100 L0 144 Z" fill="#ffffff"/>
+  </g>
+</svg>
