@@ -57,6 +57,13 @@ steps:
     displayName: 'Install Rust (Linux/macOS)'
     condition: ne(variables['Agent.OS'], 'Windows_NT')
 
+  # macOS: install ARM64 target for universal binary
+  - script: |
+      source $HOME/.cargo/env
+      rustup target add aarch64-apple-darwin
+    displayName: 'Install macOS ARM64 target'
+    condition: contains(variables['imageName'], 'macos')
+
   - powershell: |
       $rustupUrl = "https://win.rustup.rs/x86_64"
       $rustupPath = "$(Agent.TempDirectory)\rustup-init.exe"
