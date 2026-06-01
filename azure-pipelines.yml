@@ -1,0 +1,77 @@
+# Azure Pipelines — FREE for open source (public repos)
+# Build Windows .msi/.exe and macOS .dmg, plus Linux .deb
+# 
+# SETUP:
+# 1. Go to https://dev.azure.com and create a free Microsoft account
+# 2. Create a new organization (free)
+# 3. Create a new project
+# 4. Go to Pipelines → New pipeline
+# 5. Select GitHub, authorize Azure Pipelines, choose your repo
+# 6. Select "Existing Azure Pipelines YAML file", branch: main, path: /azure-pipelines.yml
+# 7. Run the pipeline (or push a new tag like v0.1.1)
+#
+# COST: Completely FREE for public repositories. Unlimited build minutes.
+# No credit card required.
+
+trigger:
+  tags:
+    include:
+      - 'v*'
+
+pr: none
+
+strategy:
+  matrix:
+    linux:
+      imageName: 'ubuntu-latest'
+      buildArgs: ''
+    macos:
+      imageName: 'macos-latest'
+      buildArgs: '--target universal-apple-darwin'
+    windows:
+      imageName: 'windows-latest'
+      buildArgs: ''
+
+pool:
+  vmImage: $(imageName)
+
+steps:
+  - checkout: self
+    fetchDepth: 0
+
+  - task: NodeTool@0
+    inputs:
+      versionSpec: '20.x'
+    displayName: 'Install Node.js'
+
+  - script: |
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+      echo "##vso[task.prependpath]$HOME/.cargo/bin"
+    displayName: 'Install Rust (Linux/macOS)'
+    condition: not(contains(variables['imageName'], 'windows'))
+
+  - script: |
+      curl -sSf -o rustup-init.exe https://win.rustup.rs/x86_64
+      rustup-init.exe -y --default-toolchain stable
+      echo "##vso[task.prependpath]%USERPROFILE%\.cargo\bin"
+    displayName: 'Install Rust (Windows)'
+    condition: contains(variables['imageName'], 'windows')
+
+  # Ubuntu dependencies
+  - script: |
+      sudo apt-get update
+      sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+    displayName: 'Install Linux dependencies'
+    condition: contains(variables['imageName'], 'ubuntu')
+
+  - script: npm install
+    displayName: 'Install npm dependencies'
+
+  - script: npm run tauri:build -- $(buildArgs)
+    displayName: 'Build Tauri app'
+
+  - task: PublishBuildArtifacts@1
+    inputs:
+      pathToPublish: 'src-tauri/target/release/bundle'
+      artifactName: 'bundle-$(imageName)'
+    displayName: 'Publish bundle artifacts'

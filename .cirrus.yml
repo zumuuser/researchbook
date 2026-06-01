@@ -1,0 +1,32 @@
+# Cirrus CI — FREE for open source. Excellent for macOS (Apple Silicon).
+#
+# SETUP:
+# 1. Go to https://cirrus-ci.org and sign in with GitHub
+# 2. Install the Cirrus CI GitHub App for your repo
+# 3. Push a new tag (e.g., git tag v0.1.1 && git push origin v0.1.1)
+#
+# COST: Completely FREE for public repositories with shared runners.
+
+macos_instance:
+  image: ghcr.io/cirruslabs/macos-runner:sonoma
+
+build_macos_task:
+  name: "Build macOS .dmg"
+  
+  install_script:
+    - brew install node@20
+    - export PATH="/opt/homebrew/opt/node@20/bin:$PATH"
+    - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+    - source $HOME/.cargo/env
+    - node --version
+    - npm --version
+    - rustc --version
+
+  build_script:
+    - export PATH="/opt/homebrew/opt/node@20/bin:$PATH"
+    - source $HOME/.cargo/env
+    - npm install
+    - npm run tauri:build -- --target universal-apple-darwin
+
+  bundle_artifacts:
+    path: "src-tauri/target/release/bundle/**/*.dmg"

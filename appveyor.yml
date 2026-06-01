@@ -1,0 +1,45 @@
+# AppVeyor — FREE for open source. Great for Windows builds.
+#
+# SETUP:
+# 1. Go to https://ci.appveyor.com and sign in with GitHub
+# 2. Click "New Project", select your GitHub repo
+# 3. AppVeyor will auto-detect this appveyor.yml
+# 4. Push a new tag (e.g., git tag v0.1.1 && git push origin v0.1.1)
+#
+# COST: Completely FREE for public repositories.
+
+image: Visual Studio 2022
+
+platform:
+  - x64
+
+environment:
+  nodejs_version: "20"
+
+install:
+  - ps: Install-Product node $env:nodejs_version x64
+  - curl -sSf -o rustup-init.exe https://win.rustup.rs/x86_64
+  - rustup-init.exe -y --default-toolchain stable
+  - set PATH=%PATH%;%USERPROFILE%\.cargo\bin
+  - rustc --version
+  - cargo --version
+  - npm install
+
+build_script:
+  - npm run tauri:build
+
+artifacts:
+  - path: src-tauri\target\release\bundle\**
+    name: researchbook-windows
+
+# Optional: deploy artifacts to GitHub Releases automatically
+# You would need to add a GitHub token in AppVeyor settings
+# deploy:
+#   - provider: GitHub
+#     auth_token:
+#       secure: YOUR_ENCRYPTED_TOKEN
+#     artifact: researchbook-windows
+#     draft: false
+#     prerelease: false
+#     on:
+#       appveyor_repo_tag: true
