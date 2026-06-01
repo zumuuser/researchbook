@@ -1,18 +1,39 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from "react";
 import { Excalidraw, restoreElements } from "@excalidraw/excalidraw";
+import { useAppStore } from "@/store/appStore";
 
-const PDF_IMAGE_ID = "pdf-background";
-const PDF_FILE_ID = "pdf-background-file";
+const PDF_IMAGE_PREFIX = "pdf-bg-";
+const PDF_FILE_PREFIX = "pdf-page-";
 
-function createPdfImageElement(width: number, height: number): any {
+function getPdfImageId(pageNumber?: number): string {
+  return `${PDF_IMAGE_PREFIX}${pageNumber ?? 0}`;
+}
+
+function getPdfFileId(pageNumber?: number): string {
+  return `${PDF_FILE_PREFIX}${pageNumber ?? 0}-bg`;
+}
+
+function isPdfImageElement(el: any): boolean {
+  return typeof el.id === "string" && el.id.startsWith(PDF_IMAGE_PREFIX);
+}
+
+function isPdfFileId(key: string): boolean {
+  return key.startsWith(PDF_FILE_PREFIX);
+}
+
+function createPdfImageElement(
+  pageNumber: number,
+  width: number,
+  height: number
+): any {
   return {
-    id: PDF_IMAGE_ID,
+    id: getPdfImageId(pageNumber),
     type: "image",
     x: -width / 2,
     y: -height / 2,
     width,
     height,
-    fileId: PDF_FILE_ID,
+    fileId: getPdfFileId(pageNumber),
     status: "saved",
     seed: 1,
     version: 2,
@@ -39,13 +60,13 @@ function createPdfImageElement(width: number, height: number): any {
   };
 }
 
-function createPdfFile(dataURL: string): any {
+function createPdfFile(pageNumber: number, dataURL: string): any {
   const mimeType = dataURL.startsWith("data:image/webp")
     ? "image/webp"
     : "image/png";
   return {
     mimeType,
-    id: PDF_FILE_ID,
+    id: getPdfFileId(pageNumber),
     dataURL,
     created: Date.now(),
   };
@@ -57,7 +78,7 @@ function parseSnapshot(snapshot: any): { elements: any[]; files: any } {
     const data = typeof snapshot === "string" ? JSON.parse(snapshot) : snapshot;
     if (data && Array.isArray(data.elements)) {
       return {
-        elements: data.elements.filter((el: any) => el.id !== PDF_IMAGE_ID),
+        elements: data.elements.filter((el: any) => !isPdfImageElement(el)),
         files: data.files || {},
       };
     }
@@ -87,9 +108,9 @@ export const ResearchCanvas: React.FC<ResearchCanvasProps> = ({
   isDarkMode,
 }) => {
   const [api, setApi] = useState<any>(null);
-  const lastSceneKey = useRef("");
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const currentPageRef = useRef(pageNumber);
+  const { spreadView } = useAppStore();
 
   useEffect(() => {
     currentPageRef.current = pageNumber;
@@ -103,9 +124,9 @@ export const ResearchCanvas: React.FC<ResearchCanvasProps> = ({
     const elements = [...savedElements];
     const files: any = { ...savedFiles };
 
-    if (pdfImageUrl && pdfWidth && pdfHeight) {
-      elements.unshift(createPdfImageElement(pdfWidth, pdfHeight));
-      files[PDF_FILE_ID] = createPdfFile(pdfImageUrl);
+    if (pdfImageUrl && pdfWidth && pdfHeight && pageNumber) {
+      elements.unshift(createPdfImageElement(pageNumber, pdfWidth, pdfHeight));
+      files[getPdfFileId(pageNumber)] = createPdfFile(pageNumber, pdfImageUrl);
     }
 
     return {
@@ -121,22 +142,18 @@ export const ResearchCanvas: React.FC<ResearchCanvasProps> = ({
 
   // Update scene whenever page, snapshot, PDF image, or theme changes
   useEffect(() => {
-    if (!api) return;
-
-    const sceneKey = `${pageNumber}-${initialSnapshot}-${pdfImageUrl}`;
-    if (sceneKey === lastSceneKey.current) return;
-    lastSceneKey.current = sceneKey;
+    if (!api || !pageNumber) return;
 
     const { elements: savedElements } = parseSnapshot(initialSnapshot);
 
     let elements = [...savedElements];
 
     if (pdfImageUrl && pdfWidth && pdfHeight) {
-      elements.unshift(createPdfImageElement(pdfWidth, pdfHeight));
+      elements.unshift(createPdfImageElement(pageNumber, pdfWidth, pdfHeight));
     }
 
     if (pdfImageUrl) {
-      api.addFiles([createPdfFile(pdfImageUrl)]);
+      api.addFiles([createPdfFile(pageNumber, pdfImageUrl)]);
     }
 
     api.updateScene({
@@ -163,6 +180,34 @@ export const ResearchCanvas: React.FC<ResearchCanvasProps> = ({
     isDarkMode,
   ]);
 
+  // Shift+1 ("!") → fit PDF to viewport
+  useEffect(() => {
+    if (!api || !pdfWidth || !pdfHeight) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "!" && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        const appState = api.getAppState();
+        const padding = 40;
+        const zoomValue = Math.min(
+          (appState.width - padding * 2) / pdfWidth,
+          (appState.height - padding * 2) / pdfHeight
+        );
+        api.updateScene({
+          appState: {
+            zoom: { value: Math.max(0.1, zoomValue) },
+            scrollX: 0,
+            scrollY: 0,
+          },
+          commitToHistory: false,
+        });
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [api, pdfWidth, pdfHeight]);
+
   // Debounced change handler — only emits if page hasn't changed mid-debounce
   const handleChange = useCallback(
     (elements: readonly any[], appState: any, files: any) => {
@@ -175,11 +220,11 @@ export const ResearchCanvas: React.FC<ResearchCanvasProps> = ({
         if (currentPageRef.current !== capturedPage) return;
 
         const userElements = elements.filter(
-          (el: any) => el.id !== PDF_IMAGE_ID
+          (el: any) => !isPdfImageElement(el)
         );
         const userFiles: any = {};
         Object.entries(files || {}).forEach(([key, value]: [string, any]) => {
-          if (key !== PDF_FILE_ID) userFiles[key] = value;
+          if (!isPdfFileId(key)) userFiles[key] = value;
         });
 
         onChange({ elements: userElements, appState, files: userFiles });
@@ -195,6 +240,7 @@ export const ResearchCanvas: React.FC<ResearchCanvasProps> = ({
         initialData={initialData}
         onChange={handleChange}
         theme={isDarkMode ? "dark" : "light"}
+        zenModeEnabled={!spreadView}
         UIOptions={{
           canvasActions: {
             changeViewBackgroundColor: false,

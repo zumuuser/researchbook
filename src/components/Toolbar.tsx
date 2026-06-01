@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useAppStore } from "@/store/appStore";
-import { Sun, Moon, Library, List, ArrowLeft } from "lucide-react";
+import { Sun, Moon, Library, List, ArrowLeft, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { PdfOutlineItem } from "@/types";
 
 interface ToolbarProps {
@@ -18,7 +18,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onJumpToPage,
   conversionProgress,
 }) => {
-  const { currentBook, isDarkMode, toggleDarkMode } = useAppStore();
+  const { currentBook, isDarkMode, toggleDarkMode, spreadView, toggleSpreadView } = useAppStore();
   const [showOutline, setShowOutline] = useState(false);
 
   return (
@@ -77,6 +77,18 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             </button>
           )}
           
+          <button
+            onClick={toggleSpreadView}
+            className="p-2 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+            title={spreadView ? "Hide canvas tools" : "Show canvas tools"}
+          >
+            {spreadView ? (
+              <PanelLeftClose className="w-4 h-4" />
+            ) : (
+              <PanelLeftOpen className="w-4 h-4" />
+            )}
+          </button>
+
           <button
             onClick={toggleDarkMode}
             className="p-2 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
