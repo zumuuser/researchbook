@@ -8,6 +8,20 @@ A desktop PDF reader built for researchers, students, and knowledge workers who 
 
 ---
 
+## Why ResearchBook Exists
+
+Most PDF readers force you into a linear, page-by-page consumption mode. But real research isn't linear — it's spatial. You draw connections between ideas on different pages, sketch diagrams in the margins, highlight with colors that mean something to *you*, and build mental maps that span hundreds of pages.
+
+ResearchBook was built to solve a simple problem: **there was no PDF reader that treats annotation as a first-class spatial experience**. Existing tools either:
+- Lock you into rigid text-only highlighting
+- Force annotations into disconnected side panels
+- Use proprietary formats that trap your notes
+- Require cloud subscriptions and upload your documents to remote servers
+
+ResearchBook is **local-first**, **open-source**, and **spatial**. Your PDFs never leave your machine. Your annotations are saved in an open SQLite database. And the infinite canvas (powered by Excalidraw) lets you think in two dimensions — the way human cognition actually works.
+
+---
+
 ## Features
 
 ### Core Reading
@@ -15,7 +29,8 @@ A desktop PDF reader built for researchers, students, and knowledge workers who 
 - **Page-by-page navigation** with keyboard shortcuts (`←` `→`, `PageUp` `PageDown`)
 - **Outline / table of contents** sidebar for jumping to chapters
 - **Dark mode** support for late-night reading sessions
-- **Spread view toggle** to show or hide the annotation toolbar
+- **Toolbar hideout** — minimize the Excalidraw tool palette when you just want to read
+- **Fit-to-screen** — press `Shift + 1` to instantly center the PDF and zoom to fit the viewport
 
 ### Spatial Annotation (powered by [Excalidraw](https://excalidraw.com))
 - **Draw** freehand sketches, diagrams, and mind maps directly on the page
@@ -23,7 +38,7 @@ A desktop PDF reader built for researchers, students, and knowledge workers who 
 - **Add shapes** (rectangles, ellipses, arrows, lines)
 - **Highlight** with the highlighter tool
 - **Sticky notes** for quick thoughts
-- **Lock the PDF image** so you annotate *around* it without moving it
+- **Lock the PDF image** so you annotate *around* it without accidentally moving it
 - **Per-page canvas state** — every page has its own independent annotation layer saved to a local SQLite database
 
 ### Library Management
@@ -36,7 +51,7 @@ A desktop PDF reader built for researchers, students, and knowledge workers who 
 - **Pinch-to-zoom** on trackpads
 - **Ctrl + scroll** to zoom in/out
 - **Plus / minus keys** for precise zoom control
-- **Zoom to fit** button in the navigation panel
+- **`Shift + 1`** to instantly fit the PDF to your screen
 - **Two-finger drag** to pan around the canvas
 
 ### Performance
@@ -66,7 +81,7 @@ A desktop PDF reader built for researchers, students, and knowledge workers who 
 ┌────────────────────┼────────────────────┐
 │         React 18 + Vite Frontend        │
 │  ┌───────────────────────────────────┐  │
-│  │  tldraw v2.4  (infinite canvas)   │  │
+│  │  Excalidraw 0.18 (infinite canvas)│  │
 │  │  ┌─────────────────────────────┐  │  │
 │  │  │  PDF page as locked image   │  │  │
 │  │  │  + user shapes & drawings   │  │  │
@@ -88,7 +103,7 @@ A desktop PDF reader built for researchers, students, and knowledge workers who 
 | Canvas Engine | Excalidraw 0.18 |
 | PDF Rendering | pdf.js 4.6 |
 | Desktop Shell | Tauri 2.0 (Rust) |
-| Database | SQLite (via `tauri-plugin-sql` or raw Rusqlite) |
+| Database | SQLite (via Rusqlite) |
 | State Management | Zustand |
 
 ---
@@ -125,15 +140,21 @@ npm install
 
 ### Run in dev mode
 ```bash
-npm run tauri:dev
+npm run tauri dev
 ```
 
 ### Build for production
 ```bash
-npm run tauri:build
+npm run tauri build
 ```
 
 This will produce installable bundles in `src-tauri/target/release/bundle/`.
+
+### Branching Strategy
+- **`main`** — stable releases only
+- **`dev`** — active development, testing, and feature integration
+
+We follow a simple workflow: develop on `dev`, test thoroughly, then merge to `main` and tag a release.
 
 ---
 
@@ -143,10 +164,11 @@ This will produce installable bundles in `src-tauri/target/release/bundle/`.
 |--------|----------|
 | Next page | `→` or `PageDown` |
 | Previous page | `←` or `PageUp` |
+| Fit PDF to screen | `Shift + 1` |
 | Zoom in | `Ctrl` + `+` or `Ctrl` + scroll up |
 | Zoom out | `Ctrl` + `-` or `Ctrl` + scroll down |
 | Pan canvas | Two-finger drag / click & drag |
-| Toggle editor tools | Click the layout icon in the top bar |
+| Toggle editor tools | Click the panel icon in the top bar |
 | Toggle dark mode | Click the sun/moon icon |
 
 ---
@@ -155,8 +177,8 @@ This will produce installable bundles in `src-tauri/target/release/bundle/`.
 
 All data is stored locally on your machine:
 - **Library database**: `~/.local/share/com.researchbook.app/researchbook.db` (Linux)
-- **Cached page images**: `~/.local/share/com.researchbook.app/pages/` (Linux)
-- **Imported PDFs**: copied into the app data directory on import
+- **Cached page images**: `~/.local/share/com.researchbook.app/books/` (Linux)
+- **Imported PDFs**: referenced from their original paths (not duplicated)
 
 No data ever leaves your device.
 
@@ -170,7 +192,7 @@ MIT License — free to use, modify, and distribute.
 
 ## Acknowledgements
 
-- [tldraw](https://tldraw.com) for the incredible infinite canvas engine
+- [Excalidraw](https://excalidraw.com) for the incredible infinite canvas engine
 - [pdf.js](https://github.com/mozilla/pdf.js) by Mozilla for PDF rendering
 - [Tauri](https://tauri.app) for the lightweight desktop framework
 - [Lucide](https://lucide.dev) for the beautiful icon set
