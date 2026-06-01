@@ -26,6 +26,9 @@ pub fn init_db(app_handle: &AppHandle) -> Result<Connection> {
     let db_path = app_dir.join("researchbook.db");
     let conn = Connection::open(&db_path)?;
 
+    // Enable foreign key constraints
+    conn.execute_batch("PRAGMA foreign_keys = ON;")?;
+
     // Run initial schema
     conn.execute_batch(include_str!("schema.sql"))?;
 

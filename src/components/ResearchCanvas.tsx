@@ -1,5 +1,5 @@
-import { useEffect, useRef, useCallback } from "react";
-import { Excalidraw } from "@excalidraw/excalidraw";
+import { useEffect, useRef, useCallback, useState, useMemo } from "react";
+import { Excalidraw, restoreElements } from "@excalidraw/excalidraw";
 
 const PDF_IMAGE_ID = "pdf-background";
 const PDF_FILE_ID = "pdf-background-file";
@@ -33,12 +33,18 @@ function createPdfImageElement(width: number, height: number): any {
     locked: true,
     strokeColor: "#000000",
     backgroundColor: "transparent",
+    crop: null,
+    index: null,
+    scale: [1, 1],
   };
 }
 
 function createPdfFile(dataURL: string): any {
+  const mimeType = dataURL.startsWith("data:image/webp")
+    ? "image/webp"
+    : "image/png";
   return {
-    mimeType: "image/webp",
+    mimeType,
     id: PDF_FILE_ID,
     dataURL,
     created: Date.now(),
@@ -71,7 +77,7 @@ interface ResearchCanvasProps {
   isDarkMode?: boolean;
 }
 
-const CanvasInner: React.FC<ResearchCanvasProps> = ({
+export const ResearchCanvas: React.FC<ResearchCanvasProps> = ({
   pageNumber,
   pdfImageUrl,
   pdfWidth,
@@ -80,7 +86,7 @@ const CanvasInner: React.FC<ResearchCanvasProps> = ({
   onChange,
   isDarkMode,
 }) => {
-  const apiRef = useRef<any>(null);
+  const [api, setApi] = useState<any>(null);
   const lastSceneKey = useRef("");
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const currentPageRef = useRef(pageNumber);
@@ -89,44 +95,75 @@ const CanvasInner: React.FC<ResearchCanvasProps> = ({
     currentPageRef.current = pageNumber;
   }, [pageNumber]);
 
-  // Update scene whenever page, snapshot, or PDF image changes
+  // Build initial data for first mount only — Excalidraw reads this once
+  const initialData = useMemo(() => {
+    const { elements: savedElements, files: savedFiles } = parseSnapshot(
+      initialSnapshot
+    );
+    const elements = [...savedElements];
+    const files: any = { ...savedFiles };
+
+    if (pdfImageUrl && pdfWidth && pdfHeight) {
+      elements.unshift(createPdfImageElement(pdfWidth, pdfHeight));
+      files[PDF_FILE_ID] = createPdfFile(pdfImageUrl);
+    }
+
+    return {
+      elements,
+      files,
+      appState: {
+        theme: (isDarkMode ? "dark" : "light") as "dark" | "light",
+        viewBackgroundColor: isDarkMode ? "#171717" : "#ffffff",
+      },
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Update scene whenever page, snapshot, PDF image, or theme changes
   useEffect(() => {
-    if (!apiRef.current) return;
+    if (!api) return;
 
     const sceneKey = `${pageNumber}-${initialSnapshot}-${pdfImageUrl}`;
     if (sceneKey === lastSceneKey.current) return;
     lastSceneKey.current = sceneKey;
 
-    const { elements: savedElements, files: savedFiles } = parseSnapshot(initialSnapshot);
+    const { elements: savedElements } = parseSnapshot(initialSnapshot);
 
     let elements = [...savedElements];
-    const files: any = { ...savedFiles };
 
     if (pdfImageUrl && pdfWidth && pdfHeight) {
-      const imageEl = createPdfImageElement(pdfWidth, pdfHeight);
-      elements = [imageEl, ...elements];
-      files[PDF_FILE_ID] = createPdfFile(pdfImageUrl);
+      elements.unshift(createPdfImageElement(pdfWidth, pdfHeight));
     }
 
-    apiRef.current.updateScene({
-      elements,
-      files,
+    if (pdfImageUrl) {
+      api.addFiles([createPdfFile(pdfImageUrl)]);
+    }
+
+    api.updateScene({
+      elements: restoreElements(elements, null),
       appState: {
-        scrollX: window.innerWidth / 2,
-        scrollY: window.innerHeight / 2,
-        zoom: { value: 1 },
+        theme: (isDarkMode ? "dark" : "light") as "dark" | "light",
+        viewBackgroundColor: isDarkMode ? "#171717" : "#ffffff",
       },
       commitToHistory: false,
     });
 
     const timeout = setTimeout(() => {
-      apiRef.current?.scrollToContent();
-    }, 100);
+      api.scrollToContent?.();
+    }, 150);
 
     return () => clearTimeout(timeout);
-  }, [pageNumber, initialSnapshot, pdfImageUrl, pdfWidth, pdfHeight]);
+  }, [
+    api,
+    pageNumber,
+    initialSnapshot,
+    pdfImageUrl,
+    pdfWidth,
+    pdfHeight,
+    isDarkMode,
+  ]);
 
-  // Debounced change handler — only saves if page hasn't changed since debounce started
+  // Debounced change handler — only emits if page hasn't changed mid-debounce
   const handleChange = useCallback(
     (elements: readonly any[], appState: any, files: any) => {
       if (!onChange) return;
@@ -137,7 +174,9 @@ const CanvasInner: React.FC<ResearchCanvasProps> = ({
       debounceRef.current = setTimeout(() => {
         if (currentPageRef.current !== capturedPage) return;
 
-        const userElements = elements.filter((el: any) => el.id !== PDF_IMAGE_ID);
+        const userElements = elements.filter(
+          (el: any) => el.id !== PDF_IMAGE_ID
+        );
         const userFiles: any = {};
         Object.entries(files || {}).forEach(([key, value]: [string, any]) => {
           if (key !== PDF_FILE_ID) userFiles[key] = value;
@@ -149,34 +188,25 @@ const CanvasInner: React.FC<ResearchCanvasProps> = ({
     [onChange, pageNumber]
   );
 
-  const handleApiReady = useCallback((api: any) => {
-    apiRef.current = api;
-  }, []);
-
-  return (
-    <Excalidraw
-      excalidrawAPI={handleApiReady}
-      onChange={handleChange}
-      theme={isDarkMode ? "dark" : "light"}
-      UIOptions={{
-        canvasActions: {
-          changeViewBackgroundColor: false,
-          clearCanvas: false,
-          export: false,
-          loadScene: false,
-          saveToActiveFile: false,
-          saveAsImage: false,
-          toggleTheme: false,
-        },
-      }}
-    />
-  );
-};
-
-export const ResearchCanvas: React.FC<ResearchCanvasProps> = (props) => {
   return (
     <div className="w-full h-full bg-white dark:bg-neutral-950 overflow-hidden">
-      <CanvasInner {...props} />
+      <Excalidraw
+        excalidrawAPI={setApi}
+        initialData={initialData}
+        onChange={handleChange}
+        theme={isDarkMode ? "dark" : "light"}
+        UIOptions={{
+          canvasActions: {
+            changeViewBackgroundColor: false,
+            clearCanvas: false,
+            export: false,
+            loadScene: false,
+            saveToActiveFile: false,
+            saveAsImage: false,
+            toggleTheme: false,
+          },
+        }}
+      />
     </div>
   );
 };
