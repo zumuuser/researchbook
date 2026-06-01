@@ -1,7 +1,12 @@
 # Azure Pipelines — FREE for open source (public repos)
-# Build Windows .msi/.exe and macOS .dmg, plus Linux .deb
+# Build Windows .msi/.exe, macOS .dmg, and Linux .deb/.rpm
 #
 # COST: Completely FREE for public repositories. Unlimited build minutes.
+# No credit card required.
+#
+# To build only specific platforms, pass variables when triggering:
+#   BUILD_LINUX=true   BUILD_WINDOWS=true   BUILD_MACOS=true
+# (omit the ones you don't want)
 
 trigger:
   tags:
@@ -10,86 +15,123 @@ trigger:
 
 pr: none
 
-strategy:
-  matrix:
-    linux:
-      imageName: 'ubuntu-latest'
-      buildArgs: ''
-    macos:
-      imageName: 'macos-latest'
-      buildArgs: '--target universal-apple-darwin'
-    windows:
-      imageName: 'windows-latest'
-      buildArgs: ''
+variables:
+  BUILD_LINUX: 'true'
+  BUILD_WINDOWS: 'true'
+  BUILD_MACOS: 'true'
 
-pool:
-  vmImage: $(imageName)
+jobs:
+  # ─── Linux ───
+  - job: linux
+    condition: eq(variables['BUILD_LINUX'], 'true')
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+      - checkout: self
+        fetchDepth: 0
 
-steps:
-  - checkout: self
-    fetchDepth: 0
+      - task: NodeTool@0
+        inputs:
+          versionSpec: '20.x'
+        displayName: 'Install Node.js'
 
-  # Linux/macOS: NodeTool works fine
-  - task: NodeTool@0
-    inputs:
-      versionSpec: '20.x'
-    displayName: 'Install Node.js'
-    condition: ne(variables['Agent.OS'], 'Windows_NT')
+      - script: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+          echo "##vso[task.prependpath]$HOME/.cargo/bin"
+        displayName: 'Install Rust'
 
-  # Windows: install Node.js manually to avoid NodeTool PATH bug
-  - powershell: |
-      $nodeUrl = "https://nodejs.org/dist/v20.20.2/node-v20.20.2-win-x64.zip"
-      $zipPath = "$(Agent.TempDirectory)\node.zip"
-      $extractPath = "$(Agent.ToolsDirectory)\node20"
-      Invoke-WebRequest -Uri $nodeUrl -OutFile $zipPath -UseBasicParsing
-      Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
-      $nodeBin = "$extractPath\node-v20.20.2-win-x64"
-      Write-Host "Adding $nodeBin to PATH"
-      Write-Host "##vso[task.prependpath]$nodeBin"
-      & "$nodeBin\node.exe" --version
-      & "$nodeBin\npm.cmd" --version
-    displayName: 'Install Node.js (Windows)'
-    condition: eq(variables['Agent.OS'], 'Windows_NT')
+      - script: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+        displayName: 'Install Linux dependencies'
 
-  - script: |
-      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
-      echo "##vso[task.prependpath]$HOME/.cargo/bin"
-    displayName: 'Install Rust (Linux/macOS)'
-    condition: ne(variables['Agent.OS'], 'Windows_NT')
+      - script: npm install
+        displayName: 'Install npm dependencies'
 
-  # macOS: install ARM64 target for universal binary
-  - script: |
-      source $HOME/.cargo/env
-      rustup target add aarch64-apple-darwin
-    displayName: 'Install macOS ARM64 target'
-    condition: contains(variables['imageName'], 'macos')
+      - script: npm run tauri:build
+        displayName: 'Build Tauri app'
 
-  - powershell: |
-      $rustupUrl = "https://win.rustup.rs/x86_64"
-      $rustupPath = "$(Agent.TempDirectory)\rustup-init.exe"
-      Invoke-WebRequest -Uri $rustupUrl -OutFile $rustupPath -UseBasicParsing
-      & $rustupPath -y --default-toolchain stable
-      Write-Host "##vso[task.prependpath]$env:USERPROFILE\.cargo\bin"
-      rustc --version
-      cargo --version
-    displayName: 'Install Rust (Windows)'
-    condition: eq(variables['Agent.OS'], 'Windows_NT')
+      - task: PublishBuildArtifacts@1
+        inputs:
+          pathToPublish: 'src-tauri/target/release/bundle'
+          artifactName: 'bundle-linux'
+        displayName: 'Publish bundle artifacts'
 
-  # Ubuntu dependencies
-  - script: |
-      sudo apt-get update
-      sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-    displayName: 'Install Linux dependencies'
-    condition: contains(variables['imageName'], 'ubuntu')
+  # ─── Windows ───
+  - job: windows
+    condition: eq(variables['BUILD_WINDOWS'], 'true')
+    pool:
+      vmImage: 'windows-latest'
+    steps:
+      - checkout: self
+        fetchDepth: 0
 
-  - script: npm install
-    displayName: 'Install npm dependencies'
+      - powershell: |
+          $nodeUrl = "https://nodejs.org/dist/v20.20.2/node-v20.20.2-win-x64.zip"
+          $zipPath = "$(Agent.TempDirectory)\node.zip"
+          $extractPath = "$(Agent.ToolsDirectory)\node20"
+          Invoke-WebRequest -Uri $nodeUrl -OutFile $zipPath -UseBasicParsing
+          Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+          $nodeBin = "$extractPath\node-v20.20.2-win-x64"
+          Write-Host "##vso[task.prependpath]$nodeBin"
+          & "$nodeBin\node.exe" --version
+          & "$nodeBin\npm.cmd" --version
+        displayName: 'Install Node.js'
 
-  - script: npm run tauri:build -- $(buildArgs)
-    displayName: 'Build Tauri app'
+      - powershell: |
+          $rustupUrl = "https://win.rustup.rs/x86_64"
+          $rustupPath = "$(Agent.TempDirectory)\rustup-init.exe"
+          Invoke-WebRequest -Uri $rustupUrl -OutFile $rustupPath -UseBasicParsing
+          & $rustupPath -y --default-toolchain stable
+          Write-Host "##vso[task.prependpath]$env:USERPROFILE\.cargo\bin"
+          rustc --version
+          cargo --version
+        displayName: 'Install Rust'
 
-  - task: PublishBuildArtifacts@1
-    inputs:
-      pathToPublish: 'src-tauri/target/release/bundle'
-      artifactName: 'bundle-$(imageName)'
-    displayName: 'Publish bundle artifacts'
+      - script: npm install
+        displayName: 'Install npm dependencies'
+
+      - script: npm run tauri:build
+        displayName: 'Build Tauri app'
+
+      - task: PublishBuildArtifacts@1
+        inputs:
+          pathToPublish: 'src-tauri/target/release/bundle'
+          artifactName: 'bundle-windows'
+        displayName: 'Publish bundle artifacts'
+
+  # ─── macOS ───
+  - job: macos
+    condition: eq(variables['BUILD_MACOS'], 'true')
+    pool:
+      vmImage: 'macos-latest'
+    steps:
+      - checkout: self
+        fetchDepth: 0
+
+      - task: NodeTool@0
+        inputs:
+          versionSpec: '20.x'
+        displayName: 'Install Node.js'
+
+      - script: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+          echo "##vso[task.prependpath]$HOME/.cargo/bin"
+        displayName: 'Install Rust'
+
+      - script: |
+          source $HOME/.cargo/env
+          rustup target add aarch64-apple-darwin
+        displayName: 'Install macOS ARM64 target'
+
+      - script: npm install
+        displayName: 'Install npm dependencies'
+
+      - script: npm run tauri:build -- --target universal-apple-darwin
+        displayName: 'Build Tauri app'
+
+      - task: PublishBuildArtifacts@1
+        inputs:
+          pathToPublish: 'src-tauri/target/release/bundle'
+          artifactName: 'bundle-macos'
+        displayName: 'Publish bundle artifacts'
