@@ -132,6 +132,6 @@ jobs:
 
       - task: PublishBuildArtifacts@1
         inputs:
-          pathToPublish: 'src-tauri/target/release/bundle'
+          pathToPublish: 'src-tauri/target/universal-apple-darwin/release/bundle'
           artifactName: 'bundle-macos'
         displayName: 'Publish bundle artifacts'
