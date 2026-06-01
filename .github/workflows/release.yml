@@ -9,6 +9,7 @@ jobs:
   publish-tauri:
     permissions:
       contents: write
+      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -50,7 +51,19 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'ResearchBook ${{ github.ref_name }}'
-          releaseBody: 'See the assets below to download and install ResearchBook for your platform.'
+          releaseBody: |
+            ## What's New
+            - Excalidraw-powered spatial annotation canvas
+            - Page-specific annotation layers with SQLite persistence
+            - Shift+1 fit-to-screen shortcut
+            - Toolbar hideout toggle
+            - Dark mode support
+            - PDF outline / table of contents navigation
+
+            ## Installation
+            - **Linux**: Download `.deb` or `.rpm`
+            - **Windows**: Download `.msi` or `.exe`
+            - **macOS**: Download `.dmg` (Intel or Apple Silicon)
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
