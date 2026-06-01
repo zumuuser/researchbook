@@ -180,33 +180,28 @@ export const ResearchCanvas: React.FC<ResearchCanvasProps> = ({
     isDarkMode,
   ]);
 
-  // Shift+1 ("!") → fit PDF to viewport
+  // Shift+1 ("!") → center and fit PDF to viewport
   useEffect(() => {
-    if (!api || !pdfWidth || !pdfHeight) return;
+    if (!api || !pageNumber) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "!" && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
-        const appState = api.getAppState();
-        const padding = 40;
-        const zoomValue = Math.min(
-          (appState.width - padding * 2) / pdfWidth,
-          (appState.height - padding * 2) / pdfHeight
-        );
-        api.updateScene({
-          appState: {
-            zoom: { value: Math.max(0.1, zoomValue) },
-            scrollX: 0,
-            scrollY: 0,
-          },
-          commitToHistory: false,
-        });
+        const pdfElement = api
+          .getSceneElements()
+          .find((el: any) => el.id === getPdfImageId(pageNumber));
+        if (pdfElement) {
+          api.scrollToContent([pdfElement], {
+            fitToViewport: true,
+            animate: false,
+          });
+        }
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [api, pdfWidth, pdfHeight]);
+  }, [api, pageNumber]);
 
   // Debounced change handler — only emits if page hasn't changed mid-debounce
   const handleChange = useCallback(
