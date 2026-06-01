@@ -57,13 +57,3 @@
     @apply bg-background text-foreground;
   }
 }
-
-/* Hide tldraw's redundant top-left main menu (export/embed/upload) */
-.tlui-main-menu {
-  display: none !important;
-}
-
-/* Hide tldraw's page menu (Page 1 dropdown) — each PDF page is its own canvas */
-.tlui-page-menu {
-  display: none !important;
-}

@@ -1,13 +1,64 @@
-import { useEffect, useRef } from "react";
-import { Tldraw, TLEditorSnapshot, useEditor, loadSnapshot } from "@tldraw/tldraw";
-import { useAppStore } from "@/store/appStore";
-import "@tldraw/tldraw/tldraw.css";
+import { useEffect, useRef, useCallback } from "react";
+import { Excalidraw } from "@excalidraw/excalidraw";
 
-const PDF_SHAPE_ID = "shape:pdf-page" as any;
-const PDF_ASSET_ID = "asset:pdf-page" as any;
+const PDF_IMAGE_ID = "pdf-background";
+const PDF_FILE_ID = "pdf-background-file";
 
-function isValidSnapshot(s: any): s is TLEditorSnapshot {
-  return s && typeof s === "object" && typeof s.schemaVersion === "number";
+function createPdfImageElement(width: number, height: number): any {
+  return {
+    id: PDF_IMAGE_ID,
+    type: "image",
+    x: -width / 2,
+    y: -height / 2,
+    width,
+    height,
+    fileId: PDF_FILE_ID,
+    status: "saved",
+    seed: 1,
+    version: 2,
+    versionNonce: Date.now(),
+    isDeleted: false,
+    fillStyle: "hachure",
+    strokeWidth: 1,
+    strokeStyle: "solid",
+    roughness: 1,
+    opacity: 100,
+    angle: 0,
+    groupIds: [],
+    frameId: null,
+    roundness: null,
+    boundElements: null,
+    updated: Date.now(),
+    link: null,
+    locked: true,
+    strokeColor: "#000000",
+    backgroundColor: "transparent",
+  };
+}
+
+function createPdfFile(dataURL: string): any {
+  return {
+    mimeType: "image/webp",
+    id: PDF_FILE_ID,
+    dataURL,
+    created: Date.now(),
+  };
+}
+
+function parseSnapshot(snapshot: any): { elements: any[]; files: any } {
+  if (!snapshot) return { elements: [], files: {} };
+  try {
+    const data = typeof snapshot === "string" ? JSON.parse(snapshot) : snapshot;
+    if (data && Array.isArray(data.elements)) {
+      return {
+        elements: data.elements.filter((el: any) => el.id !== PDF_IMAGE_ID),
+        files: data.files || {},
+      };
+    }
+  } catch {
+    // ignore invalid snapshots
+  }
+  return { elements: [], files: {} };
 }
 
 interface ResearchCanvasProps {
@@ -15,158 +66,12 @@ interface ResearchCanvasProps {
   pdfImageUrl?: string;
   pdfWidth?: number;
   pdfHeight?: number;
-  initialSnapshot?: TLEditorSnapshot | string;
-  onChange?: (snapshot: TLEditorSnapshot) => void;
+  initialSnapshot?: any;
+  onChange?: (snapshot: any) => void;
   isDarkMode?: boolean;
 }
 
-const CanvasInner: React.FC<{
-  pageNumber?: number;
-  pdfImageUrl?: string;
-  pdfWidth?: number;
-  pdfHeight?: number;
-  initialSnapshot?: TLEditorSnapshot | string;
-  onChange?: (snapshot: TLEditorSnapshot) => void;
-  isDarkMode?: boolean;
-}> = ({ pageNumber, pdfImageUrl, pdfWidth, pdfHeight, initialSnapshot, onChange, isDarkMode }) => {
-  const editor = useEditor();
-  const lastPageRef = useRef(pageNumber);
-
-  // Inject PDF image shape when URL changes
-  useEffect(() => {
-    if (!pdfImageUrl || !pdfWidth || !pdfHeight) return;
-    if (!editor) return;
-
-    // Remove old PDF shape/asset if exists
-    try {
-      const shape = editor.getShape(PDF_SHAPE_ID);
-      if (shape) editor.deleteShape(PDF_SHAPE_ID);
-    } catch {
-      // ignore
-    }
-    try {
-      const asset = editor.getAsset(PDF_ASSET_ID);
-      if (asset) editor.deleteAssets([PDF_ASSET_ID]);
-    } catch {
-      // ignore
-    }
-
-    // Create image asset
-    editor.createAssets([
-      {
-        id: PDF_ASSET_ID,
-        type: "image",
-        typeName: "asset",
-        props: {
-          name: "pdf-page",
-          src: pdfImageUrl,
-          w: pdfWidth,
-          h: pdfHeight,
-          mimeType: "image/webp",
-          isAnimated: false,
-        },
-        meta: {},
-      } as any,
-    ]);
-
-    // Create image shape centered at origin
-    editor.createShape({
-      id: PDF_SHAPE_ID,
-      type: "image",
-      x: -pdfWidth / 2,
-      y: -pdfHeight / 2,
-      isLocked: true,
-      props: {
-        w: pdfWidth,
-        h: pdfHeight,
-        assetId: PDF_ASSET_ID,
-      },
-    } as any);
-
-    // Center camera on the PDF with padding
-    const padding = 64;
-    editor.zoomToBounds(
-      { x: -pdfWidth / 2, y: -pdfHeight / 2, w: pdfWidth, h: pdfHeight },
-      { inset: padding, animation: { duration: 300 } }
-    );
-  }, [editor, pdfImageUrl, pdfWidth, pdfHeight]);
-
-  // When page changes, clear any stale user shapes so previous page annotations don't leak through
-  useEffect(() => {
-    if (!editor) return;
-    if (lastPageRef.current === pageNumber) return;
-    lastPageRef.current = pageNumber;
-
-    const allShapes = editor.getCurrentPageShapes();
-    const userShapes = allShapes.filter((s: any) => s.id !== PDF_SHAPE_ID);
-    if (userShapes.length > 0) {
-      editor.deleteShapes(userShapes);
-    }
-  }, [editor, pageNumber]);
-
-  // Load per-page snapshot whenever it arrives from the DB
-  useEffect(() => {
-    if (!editor || !initialSnapshot) return;
-    try {
-      const snap =
-        typeof initialSnapshot === "string"
-          ? JSON.parse(initialSnapshot)
-          : initialSnapshot;
-      if (isValidSnapshot(snap)) {
-        loadSnapshot(editor.store, snap);
-      }
-    } catch {
-      // ignore invalid snapshots
-    }
-  }, [editor, initialSnapshot]);
-
-  // Sync dark mode with tldraw editor
-  useEffect(() => {
-    if (!editor) return;
-    editor.user.updateUserPreferences({
-      colorScheme: isDarkMode ? "dark" : "light",
-    });
-  }, [editor, isDarkMode]);
-
-  // Ensure tldraw UI is never hidden in focus mode
-  useEffect(() => {
-    if (!editor) return;
-    editor.updateInstanceState({ isFocusMode: false });
-  }, [editor]);
-
-  // Auto-save on every edit (debounced 500ms)
-  useEffect(() => {
-    if (!onChange || !editor) return;
-    let timeout: ReturnType<typeof setTimeout>;
-
-    const unsubscribe = editor.store.listen(() => {
-      clearTimeout(timeout);
-      timeout = setTimeout(() => {
-        const snapshot = editor.getSnapshot();
-        onChange(snapshot);
-      }, 500);
-    });
-
-    return () => {
-      clearTimeout(timeout);
-      unsubscribe();
-    };
-  }, [editor, onChange]);
-
-  // Save on unmount (page change / book close)
-  useEffect(() => {
-    return () => {
-      if (onChange && editor) {
-        const snapshot = editor.getSnapshot();
-        onChange(snapshot);
-      }
-    };
-  }, [editor, onChange]);
-
-  return null;
-};
-
-export const ResearchCanvas: React.FC<ResearchCanvasProps> = ({
+const CanvasInner: React.FC<ResearchCanvasProps> = ({
   pageNumber,
   pdfImageUrl,
   pdfWidth,
@@ -175,33 +80,103 @@ export const ResearchCanvas: React.FC<ResearchCanvasProps> = ({
   onChange,
   isDarkMode,
 }) => {
-  const { spreadView } = useAppStore();
-  const parsedSnapshot = (() => {
-    if (!initialSnapshot) return undefined;
-    if (typeof initialSnapshot === "string") {
-      try {
-        const parsed = JSON.parse(initialSnapshot);
-        return isValidSnapshot(parsed) ? parsed : undefined;
-      } catch {
-        return undefined;
-      }
+  const apiRef = useRef<any>(null);
+  const lastSceneKey = useRef("");
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const currentPageRef = useRef(pageNumber);
+
+  useEffect(() => {
+    currentPageRef.current = pageNumber;
+  }, [pageNumber]);
+
+  // Update scene whenever page, snapshot, or PDF image changes
+  useEffect(() => {
+    if (!apiRef.current) return;
+
+    const sceneKey = `${pageNumber}-${initialSnapshot}-${pdfImageUrl}`;
+    if (sceneKey === lastSceneKey.current) return;
+    lastSceneKey.current = sceneKey;
+
+    const { elements: savedElements, files: savedFiles } = parseSnapshot(initialSnapshot);
+
+    let elements = [...savedElements];
+    const files: any = { ...savedFiles };
+
+    if (pdfImageUrl && pdfWidth && pdfHeight) {
+      const imageEl = createPdfImageElement(pdfWidth, pdfHeight);
+      elements = [imageEl, ...elements];
+      files[PDF_FILE_ID] = createPdfFile(pdfImageUrl);
     }
-    return isValidSnapshot(initialSnapshot) ? initialSnapshot : undefined;
-  })();
+
+    apiRef.current.updateScene({
+      elements,
+      files,
+      appState: {
+        scrollX: window.innerWidth / 2,
+        scrollY: window.innerHeight / 2,
+        zoom: { value: 1 },
+      },
+      commitToHistory: false,
+    });
+
+    const timeout = setTimeout(() => {
+      apiRef.current?.scrollToContent();
+    }, 100);
+
+    return () => clearTimeout(timeout);
+  }, [pageNumber, initialSnapshot, pdfImageUrl, pdfWidth, pdfHeight]);
+
+  // Debounced change handler — only saves if page hasn't changed since debounce started
+  const handleChange = useCallback(
+    (elements: readonly any[], appState: any, files: any) => {
+      if (!onChange) return;
+
+      clearTimeout(debounceRef.current);
+      const capturedPage = pageNumber;
+
+      debounceRef.current = setTimeout(() => {
+        if (currentPageRef.current !== capturedPage) return;
+
+        const userElements = elements.filter((el: any) => el.id !== PDF_IMAGE_ID);
+        const userFiles: any = {};
+        Object.entries(files || {}).forEach(([key, value]: [string, any]) => {
+          if (key !== PDF_FILE_ID) userFiles[key] = value;
+        });
+
+        onChange({ elements: userElements, appState, files: userFiles });
+      }, 500);
+    },
+    [onChange, pageNumber]
+  );
+
+  const handleApiReady = useCallback((api: any) => {
+    apiRef.current = api;
+  }, []);
 
   return (
+    <Excalidraw
+      excalidrawAPI={handleApiReady}
+      onChange={handleChange}
+      theme={isDarkMode ? "dark" : "light"}
+      UIOptions={{
+        canvasActions: {
+          changeViewBackgroundColor: false,
+          clearCanvas: false,
+          export: false,
+          loadScene: false,
+          saveToActiveFile: false,
+          saveAsImage: false,
+          toggleTheme: false,
+        },
+      }}
+    />
+  );
+};
+
+export const ResearchCanvas: React.FC<ResearchCanvasProps> = (props) => {
+  return (
     <div className="w-full h-full bg-white dark:bg-neutral-950 overflow-hidden">
-      <Tldraw hideUi={!spreadView} {...(parsedSnapshot ? { snapshot: parsedSnapshot } : {})}>
-        <CanvasInner
-          pageNumber={pageNumber}
-          pdfImageUrl={pdfImageUrl}
-          pdfWidth={pdfWidth}
-          pdfHeight={pdfHeight}
-          initialSnapshot={initialSnapshot}
-          onChange={onChange}
-          isDarkMode={isDarkMode}
-        />
-      </Tldraw>
+      <CanvasInner {...props} />
     </div>
   );
 };

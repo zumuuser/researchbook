@@ -13,6 +13,7 @@
     "postinstall": "node scripts/copy-pdf-worker.cjs"
   },
   "dependencies": {
+    "@excalidraw/excalidraw": "^0.18.1",
     "@radix-ui/react-dialog": "^1.1.1",
     "@radix-ui/react-dropdown-menu": "^2.1.1",
     "@radix-ui/react-slot": "^1.1.0",
@@ -20,7 +21,6 @@
     "@tauri-apps/api": "^2.0.0-rc",
     "@tauri-apps/plugin-dialog": "^2.0.0-rc",
     "@tauri-apps/plugin-fs": "^2.0.0-rc",
-    "@tldraw/tldraw": "^2.4.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.441.0",

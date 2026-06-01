@@ -1,6 +1,6 @@
 # ResearchBook
 
-A desktop PDF reader built for researchers, students, and knowledge workers who think spatially. ResearchBook combines high-performance PDF rendering with an infinite tldraw canvas, allowing you to read, annotate, draw, diagram, and connect ideas directly on top of your documents.
+A desktop PDF reader built for researchers, students, and knowledge workers who think spatially. ResearchBook combines high-performance PDF rendering with an infinite Excalidraw canvas, allowing you to read, annotate, draw, diagram, and connect ideas directly on top of your documents.
 
 > **Read. Draw. Connect. Think.**
 
@@ -17,7 +17,7 @@ A desktop PDF reader built for researchers, students, and knowledge workers who 
 - **Dark mode** support for late-night reading sessions
 - **Spread view toggle** to show or hide the annotation toolbar
 
-### Spatial Annotation (powered by [tldraw](https://tldraw.com))
+### Spatial Annotation (powered by [Excalidraw](https://excalidraw.com))
 - **Draw** freehand sketches, diagrams, and mind maps directly on the page
 - **Write text** anywhere on the canvas
 - **Add shapes** (rectangles, ellipses, arrows, lines)
@@ -85,7 +85,7 @@ A desktop PDF reader built for researchers, students, and knowledge workers who 
 | Frontend Framework | React 18 + TypeScript |
 | Build Tool | Vite 5 |
 | Styling | Tailwind CSS 3 |
-| Canvas Engine | tldraw 2.4 |
+| Canvas Engine | Excalidraw 0.18 |
 | PDF Rendering | pdf.js 4.6 |
 | Desktop Shell | Tauri 2.0 (Rust) |
 | Database | SQLite (via `tauri-plugin-sql` or raw Rusqlite) |
