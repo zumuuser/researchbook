@@ -1,17 +1,7 @@
 # Azure Pipelines — FREE for open source (public repos)
 # Build Windows .msi/.exe and macOS .dmg, plus Linux .deb
-# 
-# SETUP:
-# 1. Go to https://dev.azure.com and create a free Microsoft account
-# 2. Create a new organization (free)
-# 3. Create a new project
-# 4. Go to Pipelines → New pipeline
-# 5. Select GitHub, authorize Azure Pipelines, choose your repo
-# 6. Select "Existing Azure Pipelines YAML file", branch: main, path: /azure-pipelines.yml
-# 7. Run the pipeline (or push a new tag like v0.1.1)
 #
 # COST: Completely FREE for public repositories. Unlimited build minutes.
-# No credit card required.
 
 trigger:
   tags:
@@ -39,23 +29,44 @@ steps:
   - checkout: self
     fetchDepth: 0
 
+  # Linux/macOS: NodeTool works fine
   - task: NodeTool@0
     inputs:
       versionSpec: '20.x'
     displayName: 'Install Node.js'
+    condition: ne(variables['Agent.OS'], 'Windows_NT')
+
+  # Windows: install Node.js manually to avoid NodeTool PATH bug
+  - powershell: |
+      $nodeUrl = "https://nodejs.org/dist/v20.20.2/node-v20.20.2-win-x64.zip"
+      $zipPath = "$(Agent.TempDirectory)\node.zip"
+      $extractPath = "$(Agent.ToolsDirectory)\node20"
+      Invoke-WebRequest -Uri $nodeUrl -OutFile $zipPath -UseBasicParsing
+      Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+      $nodeBin = "$extractPath\node-v20.20.2-win-x64"
+      Write-Host "Adding $nodeBin to PATH"
+      Write-Host "##vso[task.prependpath]$nodeBin"
+      & "$nodeBin\node.exe" --version
+      & "$nodeBin\npm.cmd" --version
+    displayName: 'Install Node.js (Windows)'
+    condition: eq(variables['Agent.OS'], 'Windows_NT')
 
   - script: |
       curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
       echo "##vso[task.prependpath]$HOME/.cargo/bin"
     displayName: 'Install Rust (Linux/macOS)'
-    condition: not(contains(variables['imageName'], 'windows'))
+    condition: ne(variables['Agent.OS'], 'Windows_NT')
 
-  - script: |
-      curl -sSf -o rustup-init.exe https://win.rustup.rs/x86_64
-      rustup-init.exe -y --default-toolchain stable
-      echo "##vso[task.prependpath]%USERPROFILE%\.cargo\bin"
+  - powershell: |
+      $rustupUrl = "https://win.rustup.rs/x86_64"
+      $rustupPath = "$(Agent.TempDirectory)\rustup-init.exe"
+      Invoke-WebRequest -Uri $rustupUrl -OutFile $rustupPath -UseBasicParsing
+      & $rustupPath -y --default-toolchain stable
+      Write-Host "##vso[task.prependpath]$env:USERPROFILE\.cargo\bin"
+      rustc --version
+      cargo --version
     displayName: 'Install Rust (Windows)'
-    condition: contains(variables['imageName'], 'windows')
+    condition: eq(variables['Agent.OS'], 'Windows_NT')
 
   # Ubuntu dependencies
   - script: |
