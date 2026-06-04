@@ -11,11 +11,36 @@ export interface PageImageResult {
   error: string | null;
 }
 
+async function applyImageFilters(
+  dataUrl: string,
+  contrast: number,
+  brightness: number
+): Promise<string> {
+  if (contrast === 1.0 && brightness === 1.0) return dataUrl;
+
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext("2d")!;
+      ctx.filter = `contrast(${contrast}) brightness(${brightness})`;
+      ctx.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    img.onerror = () => reject(new Error("Failed to apply image filters"));
+    img.src = dataUrl;
+  });
+}
+
 export function usePageImage(
   bookId: number,
   pageNumber: number,
   filePath: string,
-  pdfDoc: any
+  pdfDoc: any,
+  contrast: number = 1.0,
+  brightness: number = 1.0
 ): PageImageResult {
   const [state, setState] = useState<PageImageResult>({
     url: null,
@@ -25,10 +50,15 @@ export function usePageImage(
     error: null,
   });
   const pdfDocRef = useRef(pdfDoc);
+  const filtersRef = useRef({ contrast, brightness });
 
   useEffect(() => {
     pdfDocRef.current = pdfDoc;
   }, [pdfDoc]);
+
+  useEffect(() => {
+    filtersRef.current = { contrast, brightness };
+  }, [contrast, brightness]);
 
   useEffect(() => {
     if (!filePath || bookId <= 0 || pageNumber < 1 || !pdfDocRef.current) {
@@ -67,9 +97,12 @@ export function usePageImage(
             img.src = dataUrl;
           });
 
+          const { contrast, brightness } = filtersRef.current;
+          const filteredUrl = await applyImageFilters(dataUrl, contrast, brightness);
+
           if (!cancelled) {
             setState({
-              url: dataUrl,
+              url: filteredUrl,
               width: img.naturalWidth,
               height: img.naturalHeight,
               isLoading: false,
@@ -102,9 +135,12 @@ export function usePageImage(
         await page.render({ canvasContext: ctx, viewport }).promise;
         const dataUrl = canvas.toDataURL("image/png");
 
+        const { contrast, brightness } = filtersRef.current;
+        const filteredUrl = await applyImageFilters(dataUrl, contrast, brightness);
+
         if (!cancelled) {
           setState({
-            url: dataUrl,
+            url: filteredUrl,
             width: viewport.width,
             height: viewport.height,
             isLoading: false,
@@ -122,7 +158,7 @@ export function usePageImage(
     return () => {
       cancelled = true;
     };
-  }, [bookId, pageNumber, filePath, pdfDoc]);
+  }, [bookId, pageNumber, filePath, pdfDoc, contrast, brightness]);
 
   return state;
 }

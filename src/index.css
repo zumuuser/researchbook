@@ -57,3 +57,16 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Hide Excalidraw branding links */
+.excalidraw .HelpDialog__header a[href*="plus.excalidraw.com"],
+.excalidraw .HelpDialog__header a[href*="github.com/excalidraw"],
+.excalidraw .HelpDialog__header a[href*="youtube.com/@excalidraw"] {
+  display: none !important;
+}
+
+.excalidraw a[href="https://github.com/excalidraw/excalidraw"],
+.excalidraw a[href="https://x.com/excalidraw"],
+.excalidraw a[href="https://discord.gg/UexuTaE"] {
+  display: none !important;
+}

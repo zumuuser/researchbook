@@ -98,6 +98,10 @@ interface ResearchCanvasProps {
   isDarkMode?: boolean;
 }
 
+function getDefaultCanvasBg(isDarkMode: boolean): string {
+  return isDarkMode ? "#171717" : "#ffffff";
+}
+
 export const ResearchCanvas: React.FC<ResearchCanvasProps> = ({
   pageNumber,
   pdfImageUrl,
@@ -110,11 +114,19 @@ export const ResearchCanvas: React.FC<ResearchCanvasProps> = ({
   const [api, setApi] = useState<any>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const currentPageRef = useRef(pageNumber);
-  const { spreadView } = useAppStore();
+  const { spreadView, themeSettings } = useAppStore();
 
   useEffect(() => {
     currentPageRef.current = pageNumber;
   }, [pageNumber]);
+
+  // Compute canvas background color from theme settings
+  const canvasBgColor = useMemo(() => {
+    if (themeSettings.useCustomCanvasColor) {
+      return themeSettings.canvasBgColor;
+    }
+    return getDefaultCanvasBg(!!isDarkMode);
+  }, [themeSettings.useCustomCanvasColor, themeSettings.canvasBgColor, isDarkMode]);
 
   // Build initial data for first mount only — Excalidraw reads this once
   const initialData = useMemo(() => {
@@ -134,7 +146,7 @@ export const ResearchCanvas: React.FC<ResearchCanvasProps> = ({
       files,
       appState: {
         theme: (isDarkMode ? "dark" : "light") as "dark" | "light",
-        viewBackgroundColor: isDarkMode ? "#171717" : "#ffffff",
+        viewBackgroundColor: canvasBgColor,
       },
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -160,7 +172,7 @@ export const ResearchCanvas: React.FC<ResearchCanvasProps> = ({
       elements: restoreElements(elements, null),
       appState: {
         theme: (isDarkMode ? "dark" : "light") as "dark" | "light",
-        viewBackgroundColor: isDarkMode ? "#171717" : "#ffffff",
+        viewBackgroundColor: canvasBgColor,
       },
       commitToHistory: false,
     });
@@ -178,6 +190,7 @@ export const ResearchCanvas: React.FC<ResearchCanvasProps> = ({
     pdfWidth,
     pdfHeight,
     isDarkMode,
+    canvasBgColor,
   ]);
 
   // Shift+1 ("!") → center and fit PDF to viewport
@@ -202,6 +215,51 @@ export const ResearchCanvas: React.FC<ResearchCanvasProps> = ({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [api, pageNumber]);
+
+  // Hide Excalidraw branding links (help dialog + hamburger menu)
+  useEffect(() => {
+    const hideExcalidrawBranding = () => {
+      // Hide help dialog external links
+      document.querySelectorAll(".HelpDialog__header a").forEach((el) => {
+        const href = el.getAttribute("href");
+        if (
+          href &&
+          (href.includes("plus.excalidraw") ||
+            href.includes("github.com/excalidraw") ||
+            href.includes("youtube.com/@excalidraw"))
+        ) {
+          (el as HTMLElement).style.display = "none";
+        }
+      });
+
+      // Hide "Excalidraw links" group in main menu
+      document.querySelectorAll(".dropdown-menu-group-title").forEach((el) => {
+        if (el.textContent?.includes("Excalidraw")) {
+          (el as HTMLElement).style.display = "none";
+          // Hide subsequent sibling items until next separator or group title
+          let sibling = el.nextElementSibling;
+          while (
+            sibling &&
+            !sibling.classList.contains("dropdown-menu-item-separator") &&
+            !sibling.classList.contains("dropdown-menu-group-title")
+          ) {
+            (sibling as HTMLElement).style.display = "none";
+            sibling = sibling.nextElementSibling;
+          }
+          // Also hide the separator right after the group
+          if (sibling?.classList.contains("dropdown-menu-item-separator")) {
+            (sibling as HTMLElement).style.display = "none";
+          }
+        }
+      });
+    };
+
+    const observer = new MutationObserver(hideExcalidrawBranding);
+    observer.observe(document.body, { childList: true, subtree: true });
+    hideExcalidrawBranding();
+
+    return () => observer.disconnect();
+  }, []);
 
   // Debounced change handler — only emits if page hasn't changed mid-debounce
   const handleChange = useCallback(

@@ -20,6 +20,7 @@ export default function App() {
     setCurrentPage,
     setTotalPages,
     isDarkMode,
+    themeSettings,
   } = useAppStore();
   const { savePageState, loadPageState } = usePageState();
   const { importBook, updateBookPages, listBooks, deleteBook } = useBookLibrary();
@@ -49,7 +50,9 @@ export default function App() {
     currentBook?.id || 0,
     currentPage,
     currentBook?.file_path || "",
-    pdfDoc
+    pdfDoc,
+    themeSettings.pdfContrast,
+    themeSettings.pdfBrightness
   );
 
   // Load library on mount and when returning to library
